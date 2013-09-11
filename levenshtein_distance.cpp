@@ -5,6 +5,7 @@
 #include <set>
 #include <list>
 #include <sstream>
+#include <cassert>
 
 
 using std::string;
@@ -98,9 +99,28 @@ namespace stlext
 
     // TODO: extend it using Variadic Templates
     template <typename T>
-    const T & minimum(const T & _1, const T & _2, const T & _3)
+    const T & minimum(const T & _1, const T & _2, const T & _3, unsigned * p_argNumber=nullptr)
     {
-        return std::min(std::min(_1, _2), _3);
+        #define return_statement(number, val) {if ((p_argNumber) != nullptr) *(p_argNumber) = (number); return (val); }
+
+        if (_1 < _2) 
+        {
+            if (_1 < _3) 
+            {
+                return_statement(1, _1);
+            }
+        }
+        else
+        {
+            if (_2 < _3)
+            {
+                return_statement(2, _2);
+            }
+        }
+
+        return_statement(3, _3);
+        
+        #undef return_statement
     }
 }
 
@@ -137,44 +157,91 @@ void LevenshteinDistanceCalculator::CalculateMatrix()
     size_t sourceLength = _sourceString.size();
     size_t destinationLength = _destinationString.size();
 
-    auto & distancesMatrix = GetDistanceMatrix();
-
-    // Source prefixes can be transformed to empty string by dropping all characters
-    for (size_t i = 0; i <= sourceLength; ++i)
+    if (sourceLength == destinationLength && 
+        _sourceString == _destinationString)
     {
-       distancesMatrix.at(i, 0) = i;
+        // 0
+        return;
     }
 
-    // Target prefixed can be inserted from empty source prefix by inseting every characters
-    for (size_t j = 0; j <= destinationLength; ++j)
+    if (sourceLength == 0)
     {
-        distancesMatrix.at(0, j) = j;
+        // destinationLength
+        return;
     }
 
-    for (size_t i = 1; i <= sourceLength; ++i)
+    if (destinationLength == 0)
     {
-        for (size_t j = 1; j <= destinationLength; ++j)
+        // sourceLength
+        return;
+    }
+
+    vector<vector<int> > v;
+    v.push_back(vector<int>(destinationLength + 1, 0));
+    v.push_back(vector<int>(destinationLength + 1, 0));
+
+
+    for (size_t i = 0; i <= destinationLength; ++i)
+    {
+        v[0].at(i) = i;
+    }
+
+    size_t idx = 0;
+    vector<int> * p_currentV1 = &v[idx];
+    vector<int> * p_currentV2 = &v[idx+1];
+
+    for (size_t i = 0; i < sourceLength; ++i)
+    {
+        p_currentV2->at(0) = i + 1;
+        
+        for (size_t j = 0; j < destinationLength; ++j)
         {
-            if (_sourceString.at(i-1) == _destinationString.at(j-1))
+
+            if (_sourceString.at(i) == _destinationString.at(j))
             {
-                distancesMatrix[i][j] = distancesMatrix[i-1][j-1];
+                p_currentV2->at(j+1) = p_currentV1->at(j);
             }
             else
             {
-                auto deletion = distancesMatrix.at(i - 1, j) + 1;
-                auto insertion = distancesMatrix.at(i, j - 1) + 1;
-                auto modification = distancesMatrix.at(i - 1, j - 1) + 1;
-                
-                distancesMatrix.at(i, j) = stlext::minimum(deletion, insertion, modification);
+                auto insertion      = p_currentV2->at(j) + 1;
+                auto deletion       = p_currentV1->at(j+1) + 1;            
+                auto modification   = p_currentV1->at(j) + 1;
+     
+                unsigned minArgument;
+                p_currentV2->at(j+1) = stlext::minimum(insertion, deletion, modification, &minArgument);
+
+                switch(minArgument)
+                {
+                    case 1:
+                    {
+                        std::cout << "insertion" << std::endl;
+                        break;
+                    }
+                    case 2:
+                    {
+                        std::cout << "deletion" << std::endl;
+                        break;
+                    }
+                    case 3:
+                    {
+                        std::cout << "modification" << std::endl;
+                        break;
+                    }
+                }                
+
             }
+            
+            
+            // if ((p_currentV1->at(j) != p_currentV2->at(j+1)))
+            // {
+            // }
         }
+
+        assert(p_currentV1->size() == p_currentV2->size());
+        std::copy(p_currentV2->begin(), p_currentV2->end(), p_currentV1->begin());
     }
 
-    #ifndef NDEBUG
-        std::cout << distancesMatrix << std::endl;
-    #endif 
-
-    std::cout << "Solution is: " << distancesMatrix.at(sourceLength, destinationLength) << std::endl;
+    std::cout << "Solution is: " << p_currentV2->at(destinationLength) << std::endl;
 }
 
 
